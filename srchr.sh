@@ -9,9 +9,22 @@ srchr() {
         return 1
     fi
 
-    local locate='file=$1; case $file in [-+]* ) file=./$file;; esac; line=$(rg -nS -m1 -- "$SRCHR_TERM" "$file" | cut -d: -f1); '
-    local preview=$locate'if [ -n "$line" ]; then start=$((line > 3 ? line - 3 : 1)); bat --color always --highlight-line "$line" --line-range "$start:" "$file"; else bat --color always "$file"; fi'
-    local open=$locate'if [ -n "$line" ]; then exec "$EDITOR" "+$line" "$file"; else exec "$EDITOR" "$file"; fi'
+    # locate: normalize the selected path, then find the first matching line.
+    local locate='file=$1; '
+    locate=$locate'case $file in [-+]* ) file=./$file;; esac; '
+    locate=$locate'line=$(rg -nS -m1 -- "$SRCHR_TERM" "$file" | cut -d: -f1); '
+
+    # preview: highlight around the match, or show the whole file when none.
+    local preview=$locate
+    preview=$preview'if [ -n "$line" ]; then '
+    preview=$preview'start=$((line > 3 ? line - 3 : 1)); '
+    preview=$preview'bat --color always --highlight-line "$line" --line-range "$start:" "$file"; '
+    preview=$preview'else bat --color always "$file"; fi'
+
+    # open: jump the editor to the match, or just open the file when none.
+    local open=$locate
+    open=$open'if [ -n "$line" ]; then exec "$EDITOR" "+$line" "$file"; '
+    open=$open'else exec "$EDITOR" "$file"; fi'
 
     {
         fd -tf -- "$search_term"
