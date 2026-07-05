@@ -1,7 +1,7 @@
 # AGENTS.md
 
 Shell functions for a unified fd + rg + fzf + bat file search (`srchr <term>`).
-No build system, no test suite, no CI.
+No build system. Local smoke tests live in `tests/smoke.sh`; GitHub Actions runs the same script.
 
 ## Structure
 
@@ -33,19 +33,13 @@ snippet guard that rewrites those relative paths to `./...` before calling
 `rg`, `bat`, or `$EDITOR`; otherwise nvim/vim can treat `+...` as editor
 commands and tools can treat `-...` as options.
 
-## Verification (no test suite — do this instead)
+## Verification
 
-- Syntax: `fish -n srchr.fish`, `bash -n srchr.sh`
-- zsh is **not installed** locally; use Docker:
-  `docker run --rm -v "$PWD":/w -w /w zshusers/zsh zsh -n srchr.sh`
-- Snippets can be run directly without fzf:
-  `SRCHR_TERM=<term> sh -c '<snippet>' sh <file>`; use `EDITOR=echo` to check
-  the enter binding produces `+<line> file` vs `file`
-- To inspect what fzf receives, source the file and stub it:
-  `fzf() { printf "[%s]\n" "$@"; cat >/dev/null; }` — then diff the
-  `--preview`/`--bind` args across the fish and sh versions
-- Security smoke checks: `fd -tf -- '--exec=rm'` must not delete files, and a
-  selected file named like `+!touch pwned` must be passed to the editor as
-  `./+!touch pwned`
+- Run the automated smoke suite: `tests/smoke.sh`
+- The script covers syntax checks, fzf preview/bind parity across shell ports,
+  direct snippet behavior, and security smoke checks for leading-option terms
+  and selected paths beginning with `+` or `-`.
+- zsh is optional locally: the script uses direct `zsh` when installed, falls
+  back to Docker when available, and skips only when neither exists.
 - The interactive fzf flow needs a TTY; the agent cannot test it — ask the
-  user for a manual smoke test
+  user for a manual smoke test.

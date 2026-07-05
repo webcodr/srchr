@@ -28,6 +28,18 @@ srchr <search_term>
 [bat](https://github.com/sharkdp/bat) on your `PATH`, plus an `$EDITOR` that
 understands `+<line>` (vim, nvim, helix, kakoune, nano, ...).
 
+## Test
+
+Run the local smoke checks:
+
+```sh
+tests/smoke.sh
+```
+
+This requires `fish` on your `PATH`.
+
+The interactive fzf flow still needs a manual TTY smoke test.
+
 ## Install
 
 ### fish
