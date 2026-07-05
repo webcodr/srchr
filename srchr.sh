@@ -9,13 +9,13 @@ srchr() {
         return 1
     fi
 
-    local locate='line=$(rg -nS -m1 -- "$SRCHR_TERM" "$1" | cut -d: -f1); '
-    local preview=$locate'if [ -n "$line" ]; then start=$((line > 3 ? line - 3 : 1)); bat --color always --highlight-line "$line" --line-range "$start:" "$1"; else bat --color always "$1"; fi'
-    local open=$locate'if [ -n "$line" ]; then exec "$EDITOR" "+$line" "$1"; else exec "$EDITOR" "$1"; fi'
+    local locate='file=$1; case $file in [-+]* ) file=./$file;; esac; line=$(rg -nS -m1 -- "$SRCHR_TERM" "$file" | cut -d: -f1); '
+    local preview=$locate'if [ -n "$line" ]; then start=$((line > 3 ? line - 3 : 1)); bat --color always --highlight-line "$line" --line-range "$start:" "$file"; else bat --color always "$file"; fi'
+    local open=$locate'if [ -n "$line" ]; then exec "$EDITOR" "+$line" "$file"; else exec "$EDITOR" "$file"; fi'
 
     {
-        fd -tf "$search_term"
-        rg -lS "$search_term"
+        fd -tf -- "$search_term"
+        rg -lS -- "$search_term"
     } | sort -u | SRCHR_TERM=$search_term fzf \
         --preview "sh -c '$preview' sh {}" \
         --bind "enter:become(sh -c '$open' sh {})"

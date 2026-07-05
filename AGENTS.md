@@ -28,6 +28,11 @@ do not `export` it into the session.
 Snippets run via `sh -c '...' sh {}` (file arrives as `$1`) so they work no
 matter which shell fzf's `$SHELL -c` uses.
 
+Selected paths may begin with `+` or `-` (raw output from `fd`/`rg`). Keep the
+snippet guard that rewrites those relative paths to `./...` before calling
+`rg`, `bat`, or `$EDITOR`; otherwise nvim/vim can treat `+...` as editor
+commands and tools can treat `-...` as options.
+
 ## Verification (no test suite — do this instead)
 
 - Syntax: `fish -n srchr.fish`, `bash -n srchr.sh`
@@ -39,5 +44,8 @@ matter which shell fzf's `$SHELL -c` uses.
 - To inspect what fzf receives, source the file and stub it:
   `fzf() { printf "[%s]\n" "$@"; cat >/dev/null; }` — then diff the
   `--preview`/`--bind` args across the fish and sh versions
+- Security smoke checks: `fd -tf -- '--exec=rm'` must not delete files, and a
+  selected file named like `+!touch pwned` must be passed to the editor as
+  `./+!touch pwned`
 - The interactive fzf flow needs a TTY; the agent cannot test it — ask the
   user for a manual smoke test

@@ -15,11 +15,16 @@ in fzf, previews with bat, and opens the selection in `$EDITOR`.
 - `srchr <search_term>`; empty term prints usage and returns 1.
 - Candidate files come from both `fd -tf <term>` (filename matches) and
   `rg -lS <term>` (content matches, smart-case), merged and deduplicated.
+- Search terms are passed after `--` to prevent option injection into
+  `fd` or `rg`.
 - Smart preview: if the selected file contains the term, bat highlights
   the first matching line and starts the view 3 lines above it;
   otherwise plain bat from the top.
 - Enter opens `$EDITOR +<line> file` for content matches (vim/nvim/helix
   style `+N`), plain `$EDITOR file` otherwise.
+- Selected relative paths beginning with `+` or `-` are normalized with a
+  `./` prefix before `rg`, `bat`, or `$EDITOR` sees them, so filenames
+  cannot become editor commands or command-line options.
 - `fdp.fish` and `rgp.fish` are deleted.
 
 ## Design
@@ -29,7 +34,7 @@ helper-script variant to keep the tool a one-file install).
 
 Key mechanics:
 
-- `begin; fd -tf $term; rg -lS $term; end | sort -u` builds the
+- `begin; fd -tf -- $term; rg -lS -- $term; end | sort -u` builds the
   deduplicated candidate list.
 - The term is exported as `SRCHR_TERM` (`set -lx`) so fzf's preview and
   enter subprocesses can re-locate the first match via
@@ -72,3 +77,6 @@ Differences from the fish version are mechanical:
   usage path in both shells, and fzf stubbed in both shells to confirm
   byte-identical `--preview`/`--bind` arguments and that `SRCHR_TERM`
   reaches fzf without leaking into the session.
+- Security regression checks: leading-dash search terms do not become
+  `fd`/`rg` options, and leading-plus/leading-dash selected paths are
+  normalized before editor/preview invocation.

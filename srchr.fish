@@ -10,9 +10,9 @@ function srchr
     set -lx SRCHR_TERM $search_term
 
     begin
-        fd -tf $search_term
-        rg -lS $search_term
+        fd -tf -- $search_term
+        rg -lS -- $search_term
     end | sort -u | fzf \
-        --preview 'sh -c \'line=$(rg -nS -m1 -- "$SRCHR_TERM" "$1" | cut -d: -f1); if [ -n "$line" ]; then start=$((line > 3 ? line - 3 : 1)); bat --color always --highlight-line "$line" --line-range "$start:" "$1"; else bat --color always "$1"; fi\' sh {}' \
-        --bind 'enter:become(sh -c \'line=$(rg -nS -m1 -- "$SRCHR_TERM" "$1" | cut -d: -f1); if [ -n "$line" ]; then exec "$EDITOR" "+$line" "$1"; else exec "$EDITOR" "$1"; fi\' sh {})'
+        --preview 'sh -c \'file=$1; case $file in [-+]* ) file=./$file;; esac; line=$(rg -nS -m1 -- "$SRCHR_TERM" "$file" | cut -d: -f1); if [ -n "$line" ]; then start=$((line > 3 ? line - 3 : 1)); bat --color always --highlight-line "$line" --line-range "$start:" "$file"; else bat --color always "$file"; fi\' sh {}' \
+        --bind 'enter:become(sh -c \'file=$1; case $file in [-+]* ) file=./$file;; esac; line=$(rg -nS -m1 -- "$SRCHR_TERM" "$file" | cut -d: -f1); if [ -n "$line" ]; then exec "$EDITOR" "+$line" "$file"; else exec "$EDITOR" "$file"; fi\' sh {})'
 end

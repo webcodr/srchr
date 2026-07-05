@@ -51,4 +51,7 @@ source /path/to/srchr/srchr.sh
 - The search term is passed to the fzf preview/enter commands via the
   `SRCHR_TERM` environment variable rather than string interpolation, so
   terms containing quotes or shell metacharacters are safe.
+- Search terms are passed to `fd`/`rg` after `--`, and selected relative
+  paths starting with `+` or `-` are normalized before invoking `bat` or
+  `$EDITOR`, so option/command-looking inputs are treated as data.
 - `srchr.sh` is a single file that works in both bash and zsh.
