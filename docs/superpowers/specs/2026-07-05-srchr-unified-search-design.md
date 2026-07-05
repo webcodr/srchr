@@ -40,6 +40,19 @@ Key mechanics:
   `{}` placeholder is passed as `$1`.
 - Enter uses fzf's `become(...)` to exec the editor in place.
 
+## Shell Ports
+
+`srchr.sh` provides the same function for bash and zsh in a single
+sourceable file (the required syntax is identical in both shells).
+Differences from the fish version are mechanical:
+
+- The `sh -c` snippets are byte-identical, but built from local
+  variables (`locate`, `preview`, `open`) sharing the rg-lookup
+  fragment, since bash/zsh cannot escape `'` inside single quotes.
+- `SRCHR_TERM` is passed as an env prefix on the fzf command only
+  (`... | SRCHR_TERM=$search_term fzf ...`), not exported into the
+  session.
+
 ## Rejected Alternatives
 
 - **Helper preview script:** cleaner quoting but two files to keep in
@@ -55,3 +68,7 @@ Key mechanics:
 - Both `sh -c` snippets exercised directly with match/no-match terms and
   `EDITOR=echo` to verify arguments (`+1 file` vs `file`).
 - Interactive fzf session verified manually (requires TTY).
+- Shell ports: `bash -n`/`zsh -n` syntax checks (zsh via Docker),
+  usage path in both shells, and fzf stubbed in both shells to confirm
+  byte-identical `--preview`/`--bind` arguments and that `SRCHR_TERM`
+  reaches fzf without leaking into the session.
