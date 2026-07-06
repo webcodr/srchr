@@ -160,6 +160,14 @@ computed **only for the selected row** (lazily), not for every row.
 - **Known tradeoff:** syntect output will not be pixel-identical to the user's
   personal `bat` theme/config — inherent to dropping the `bat` dependency. A
   theme flag/config can come later.
+- **Considered and deferred: honoring the user's bat theme.** bat is built on
+  syntect and its themes are `.tmTheme` files syntect can load, so honoring
+  `$BAT_THEME` / bat's config is technically possible. Deferred because
+  syntect's built-in theme set only bundles a handful of themes; resolving an
+  arbitrary bat theme name would require embedding bat's larger theme
+  collection or loading `.tmTheme` files from bat's config dir at runtime —
+  a soft coupling to bat's config not worth it for this iteration. Revisit via
+  a `--theme` flag / optional `$BAT_THEME` lookup later.
 
 ## Editor launch & path safety
 
