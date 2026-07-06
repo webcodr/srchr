@@ -163,7 +163,8 @@ computed **only for the selected row** (lazily), not for every row.
 
 ## Editor launch & path safety
 
-- **Resolution:** read `$EDITOR`; if unset, fall back to `vi`.
+- **Resolution:** read `$EDITOR`; if unset (or empty), exit with a clear error
+  ("$EDITOR is not set") rather than guessing an editor.
 - **Path safety:** if a path begins with `+` or `-`, rewrite to `./<path>`
   before handing it to the editor (vim treats leading `+` as a command, leading
   `-` as an option). Also pass paths after `--` where supported.
@@ -192,7 +193,7 @@ computed **only for the selected row** (lazily), not for every row.
   line-by-line.
 - **Terminal too small:** degrade gracefully (collapse preview below a min
   width).
-- **`$EDITOR` unset:** fall back to `vi`.
+- **`$EDITOR` unset/empty:** exit with a clear error; no editor is guessed.
 - **No TTY (piped/non-interactive):** detect and exit with a clear message.
 
 ## Testing & verification
