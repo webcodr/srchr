@@ -75,6 +75,13 @@ pub fn name_matches(query: &Query, path: &Path) -> bool {
     }
 }
 
+/// Strip a leading "./" path component so rows read "src/main.rs" instead of
+/// "./src/main.rs" when the search root is ".". Paths built from other roots
+/// are unaffected, since they never gain this prefix from `WalkBuilder`.
+fn normalize_path(path: &Path) -> PathBuf {
+    path.strip_prefix(".").unwrap_or(path).to_path_buf()
+}
+
 /// Content matches first (by descending count), then name-only; ties by path.
 pub fn sort_hits(hits: &mut [FileHit]) {
     hits.sort_by(|a, b| {
@@ -110,11 +117,39 @@ pub fn search(query: &Query, root: &Path, cancel: &Arc<AtomicBool>) -> Vec<FileH
 
         if count > 0 || name_hit {
             hits.push(FileHit {
-                path: path.to_path_buf(),
+                path: normalize_path(path),
                 match_count: count,
                 first_line: first,
             });
         }
+    }
+
+    sort_hits(&mut hits);
+    hits
+}
+
+/// Walk `root` (gitignore-aware), producing one FileHit per file with no
+/// query applied. Used when the search query is empty, to browse the whole
+/// tree. Returns empty if `cancel` is set. Cancellation is checked per entry.
+pub fn list_dir(root: &Path, cancel: &Arc<AtomicBool>) -> Vec<FileHit> {
+    let mut hits: Vec<FileHit> = Vec::new();
+
+    for result in WalkBuilder::new(root).require_git(false).build() {
+        if cancel.load(Ordering::Relaxed) {
+            return Vec::new();
+        }
+        let entry = match result {
+            Ok(e) => e,
+            Err(_) => continue, // skip unreadable entries silently
+        };
+        if !entry.file_type().is_some_and(|ft| ft.is_file()) {
+            continue;
+        }
+        hits.push(FileHit {
+            path: normalize_path(entry.path()),
+            match_count: 0,
+            first_line: None,
+        });
     }
 
     sort_hits(&mut hits);
@@ -191,6 +226,26 @@ mod tests {
         assert!(name_matches(&q, Path::new("README.md")));
         let q2 = Query::compile("README").unwrap();
         assert!(!name_matches(&q2, Path::new("readme.md")));
+    }
+
+    #[test]
+    fn normalize_path_strips_leading_dot_slash() {
+        assert_eq!(
+            normalize_path(Path::new("./src/main.rs")),
+            PathBuf::from("src/main.rs")
+        );
+    }
+
+    #[test]
+    fn normalize_path_leaves_other_paths_unchanged() {
+        assert_eq!(
+            normalize_path(Path::new("src/main.rs")),
+            PathBuf::from("src/main.rs")
+        );
+        assert_eq!(
+            normalize_path(Path::new("/tmp/foo/bar.rs")),
+            PathBuf::from("/tmp/foo/bar.rs")
+        );
     }
 
     #[test]

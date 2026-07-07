@@ -1,4 +1,4 @@
-use srchr::search::{search, Query};
+use srchr::search::{list_dir, search, Query};
 use std::io::Write;
 use std::path::Path;
 
@@ -46,6 +46,20 @@ fn merges_name_and_content_hits_deduped() {
 }
 
 #[test]
+fn search_strips_leading_dot_slash_from_root() {
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "alpha.rs", "alpha token\n");
+    let cwd = std::env::current_dir().unwrap();
+    std::env::set_current_dir(dir.path()).unwrap();
+    let q = Query::compile("alpha").unwrap();
+    let hits = search(&q, Path::new("."), &cancel_never());
+    std::env::set_current_dir(cwd).unwrap();
+
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].path, std::path::PathBuf::from("alpha.rs"));
+}
+
+#[test]
 fn respects_gitignore() {
     let dir = tempfile::tempdir().unwrap();
     write(dir.path(), ".gitignore", "ignored/\n");
@@ -69,4 +83,61 @@ fn cancel_flag_returns_empty() {
     let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
     let hits = search(&q, dir.path(), &cancel);
     assert!(hits.is_empty());
+}
+
+#[test]
+fn list_dir_returns_all_files_as_name_only_hits() {
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "a.rs", "hello\n");
+    write(dir.path(), "b.txt", "world\n");
+    let hits = list_dir(dir.path(), &cancel_never());
+
+    let names: Vec<_> = hits
+        .iter()
+        .map(|h| h.path.file_name().unwrap().to_str().unwrap().to_string())
+        .collect();
+    assert!(names.contains(&"a.rs".to_string()));
+    assert!(names.contains(&"b.txt".to_string()));
+    for h in &hits {
+        assert_eq!(h.match_count, 0);
+        assert_eq!(h.first_line, None);
+    }
+}
+
+#[test]
+fn list_dir_respects_gitignore() {
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), ".gitignore", "ignored/\n");
+    write(dir.path(), "ignored/secret.rs", "x\n");
+    write(dir.path(), "kept.rs", "x\n");
+    let hits = list_dir(dir.path(), &cancel_never());
+    let names: Vec<_> = hits
+        .iter()
+        .map(|h| h.path.file_name().unwrap().to_str().unwrap().to_string())
+        .collect();
+    assert!(names.contains(&"kept.rs".to_string()));
+    assert!(!names.contains(&"secret.rs".to_string()));
+}
+
+#[test]
+fn list_dir_cancel_flag_returns_empty() {
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "a.rs", "hello\n");
+    let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(true));
+    let hits = list_dir(dir.path(), &cancel);
+    assert!(hits.is_empty());
+}
+
+#[test]
+fn list_dir_sorts_alphabetically_by_path() {
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "z.rs", "x\n");
+    write(dir.path(), "a.rs", "x\n");
+    write(dir.path(), "m.rs", "x\n");
+    let hits = list_dir(dir.path(), &cancel_never());
+    let names: Vec<_> = hits
+        .iter()
+        .map(|h| h.path.file_name().unwrap().to_str().unwrap().to_string())
+        .collect();
+    assert_eq!(names, vec!["a.rs", "m.rs", "z.rs"]);
 }

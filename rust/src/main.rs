@@ -19,7 +19,7 @@ use clap::Parser;
 use srchr::app::App;
 use srchr::editor;
 use srchr::preview::{build_preview_safe, style_preview, PreviewData, StyledPreview};
-use srchr::search::{search, FileHit, Query};
+use srchr::search::{list_dir, search, FileHit, Query};
 
 const DEBOUNCE: Duration = Duration::from_millis(60);
 const POLL_INTERVAL: Duration = Duration::from_millis(30);
@@ -68,14 +68,9 @@ fn run(root: PathBuf, initial_query: Option<String>) -> io::Result<()> {
     let seed = initial_query.unwrap_or_default();
     let mut app = App::with_query(seed.clone());
     let (result_tx, result_rx): (Sender<SearchResult>, Receiver<SearchResult>) = mpsc::channel();
-    let mut pending_query: Option<String> = None;
-    let mut pending_at = Instant::now();
-
-    if !seed.is_empty() {
-        pending_query = Some(seed);
-        pending_at = Instant::now() - DEBOUNCE;
-        app.status = "searching...".to_string();
-    }
+    let mut pending_query: Option<String> = Some(seed);
+    let mut pending_at = Instant::now() - DEBOUNCE;
+    app.status = "searching...".to_string();
     let mut current_cancel: Option<Arc<AtomicBool>> = None;
     let mut launch_target: Option<(String, Option<usize>)> = None;
     let mut preview_key: Option<(PathBuf, Option<usize>)> = None;
@@ -127,15 +122,9 @@ fn run(root: PathBuf, initial_query: Option<String>) -> io::Result<()> {
                             if let Some(cancel) = current_cancel.take() {
                                 cancel.store(true, Ordering::Relaxed);
                             }
-                            if app.query.is_empty() {
-                                pending_query = None;
-                                app.set_results(Vec::new());
-                                app.status.clear();
-                            } else {
-                                pending_query = Some(app.query.clone());
-                                pending_at = Instant::now();
-                                app.status = "searching...".to_string();
-                            }
+                            pending_query = Some(app.query.clone());
+                            pending_at = Instant::now();
+                            app.status = "searching...".to_string();
                         }
                         Action::None => {}
                     }
@@ -230,9 +219,13 @@ fn spawn_search(query: &str, root: &Path, tx: Sender<SearchResult>) -> Arc<Atomi
     let query = query.to_string();
     let root = root.to_path_buf();
     thread::spawn(move || {
-        let (hits, error) = match Query::compile(&query) {
-            Ok(q) => (search(&q, &root, &worker_cancel), None),
-            Err(e) => (Vec::new(), Some(e)),
+        let (hits, error) = if query.is_empty() {
+            (list_dir(&root, &worker_cancel), None)
+        } else {
+            match Query::compile(&query) {
+                Ok(q) => (search(&q, &root, &worker_cancel), None),
+                Err(e) => (Vec::new(), Some(e)),
+            }
         };
         let _ = tx.send(SearchResult { query, hits, error });
     });
@@ -306,5 +299,30 @@ mod tests {
         let cli = Cli::parse_from(["srchr", "src", "-q", "fn"]);
         assert_eq!(cli.path, PathBuf::from("src"));
         assert_eq!(cli.query.as_deref(), Some("fn"));
+    }
+
+    #[test]
+    fn spawn_search_with_empty_query_lists_directory() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("a.rs"), "hello").unwrap();
+        std::fs::write(dir.path().join("b.txt"), "world").unwrap();
+
+        let (tx, rx) = mpsc::channel();
+        let _cancel = spawn_search("", dir.path(), tx);
+        let res = rx.recv_timeout(Duration::from_secs(2)).unwrap();
+
+        assert_eq!(res.query, "");
+        assert!(res.error.is_none());
+        let names: Vec<_> = res
+            .hits
+            .iter()
+            .map(|h| h.path.file_name().unwrap().to_str().unwrap().to_string())
+            .collect();
+        assert!(names.contains(&"a.rs".to_string()));
+        assert!(names.contains(&"b.txt".to_string()));
+        for h in &res.hits {
+            assert_eq!(h.match_count, 0);
+            assert_eq!(h.first_line, None);
+        }
     }
 }
