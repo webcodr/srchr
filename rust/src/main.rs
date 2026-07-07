@@ -14,6 +14,8 @@ use crossterm::terminal::{
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 
+use clap::Parser;
+
 use srchr::app::App;
 use srchr::editor;
 use srchr::preview::{build_preview_safe, style_preview, PreviewData, StyledPreview};
@@ -29,18 +31,28 @@ struct SearchResult {
     error: Option<String>,
 }
 
+/// Live-grep file search with fuzzy selection and syntax preview.
+#[derive(Parser, Debug)]
+#[command(version, about)]
+struct Cli {
+    /// Directory to search (defaults to the current directory).
+    #[arg(default_value = ".")]
+    path: PathBuf,
+
+    /// Prefill the search query and run it immediately on startup.
+    #[arg(short, long)]
+    query: Option<String>,
+}
+
 fn main() {
     if !io::stdin().is_terminal() || !io::stdout().is_terminal() {
         eprintln!("srchr: not a terminal (this is an interactive tool)");
         std::process::exit(2);
     }
 
-    let root = std::env::args()
-        .nth(1)
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("."));
+    let cli = Cli::parse();
 
-    if let Err(e) = run(root) {
+    if let Err(e) = run(cli.path) {
         eprintln!("srchr: {e}");
         std::process::exit(1);
     }
@@ -265,5 +277,27 @@ mod tests {
         let action = handle_key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE), &mut app);
         assert_eq!(action, Action::None);
         assert_eq!(app.selected, 0);
+    }
+
+    #[test]
+    fn cli_definition_is_valid() {
+        use clap::CommandFactory;
+        Cli::command().debug_assert();
+    }
+
+    #[test]
+    fn cli_defaults_path_to_dot_and_no_query() {
+        use clap::Parser;
+        let cli = Cli::parse_from(["srchr"]);
+        assert_eq!(cli.path, PathBuf::from("."));
+        assert_eq!(cli.query, None);
+    }
+
+    #[test]
+    fn cli_parses_path_and_query() {
+        use clap::Parser;
+        let cli = Cli::parse_from(["srchr", "src", "-q", "fn"]);
+        assert_eq!(cli.path, PathBuf::from("src"));
+        assert_eq!(cli.query.as_deref(), Some("fn"));
     }
 }
