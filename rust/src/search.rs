@@ -117,7 +117,7 @@ pub fn search(query: &Query, root: &Path, cancel: &Arc<AtomicBool>) -> Vec<FileH
 
         if count > 0 || name_hit {
             hits.push(FileHit {
-                path: path.to_path_buf(),
+                path: normalize_path(path),
                 match_count: count,
                 first_line: first,
             });

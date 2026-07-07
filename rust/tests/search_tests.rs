@@ -46,6 +46,20 @@ fn merges_name_and_content_hits_deduped() {
 }
 
 #[test]
+fn search_strips_leading_dot_slash_from_root() {
+    let dir = tempfile::tempdir().unwrap();
+    write(dir.path(), "alpha.rs", "alpha token\n");
+    let cwd = std::env::current_dir().unwrap();
+    std::env::set_current_dir(dir.path()).unwrap();
+    let q = Query::compile("alpha").unwrap();
+    let hits = search(&q, Path::new("."), &cancel_never());
+    std::env::set_current_dir(cwd).unwrap();
+
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].path, std::path::PathBuf::from("alpha.rs"));
+}
+
+#[test]
 fn respects_gitignore() {
     let dir = tempfile::tempdir().unwrap();
     write(dir.path(), ".gitignore", "ignored/\n");
