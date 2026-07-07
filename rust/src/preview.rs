@@ -5,12 +5,19 @@ use once_cell::sync::Lazy;
 use ratatui::style::{Color as TuiColor, Style};
 use ratatui::text::{Line, Span};
 use syntect::easy::HighlightLines;
-use syntect::highlighting::{Style as SynStyle, ThemeSet};
+use syntect::highlighting::{Style as SynStyle, Theme, ThemeSet};
 use syntect::parsing::SyntaxSet;
 
 static SYNTAXES: Lazy<SyntaxSet> = Lazy::new(SyntaxSet::load_defaults_newlines);
-static THEMES: Lazy<ThemeSet> = Lazy::new(ThemeSet::load_defaults);
-const DEFAULT_THEME: &str = "base16-ocean.dark";
+
+/// Bundled Tokyo Night ("Night" variant) syntax theme, sourced from
+/// `folke/tokyonight.nvim` (Apache-2.0). See `rust/assets/README.md`.
+const TOKYO_NIGHT_THEME_BYTES: &[u8] = include_bytes!("../assets/tokyonight_night.tmTheme");
+
+static SYNTAX_THEME: Lazy<Theme> = Lazy::new(|| {
+    ThemeSet::load_from_reader(&mut std::io::Cursor::new(TOKYO_NIGHT_THEME_BYTES))
+        .expect("bundled tokyonight_night.tmTheme should parse")
+});
 
 /// Mirrors the shell `start=$((line > 3 ? line - 3 : 1))`.
 pub fn preview_start(first_line: Option<usize>) -> usize {
@@ -25,6 +32,40 @@ pub struct PreviewData {
     /// (1-based line number, text) pairs, starting at `preview_start`.
     pub lines: Vec<(usize, String)>,
     pub highlight: Option<usize>,
+}
+
+const TAB_WIDTH: usize = 4;
+
+/// Expand tabs to spaces (tracking real column position) and drop any other
+/// control characters.
+///
+/// ratatui's `Buffer::set_stringn` filters out control characters entirely
+/// *without* advancing the write cursor for them. Because ratatui only
+/// resets the buffer from two frames ago (not the one about to be rendered
+/// into), any cell a widget fails to overwrite can retain stale content from
+/// an earlier frame — so a literal tab or other control character in
+/// previewed text can corrupt the display with fragments of a previous
+/// preview. Preview text must therefore never contain raw control
+/// characters.
+fn sanitize_line(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut col = 0usize;
+    for ch in line.chars() {
+        if ch == '\t' {
+            let spaces = TAB_WIDTH - (col % TAB_WIDTH);
+            for _ in 0..spaces {
+                out.push(' ');
+            }
+            col += spaces;
+        } else if ch.is_control() {
+            // Drop stray control characters (e.g. an errant \r) rather than
+            // let them reach the renderer.
+        } else {
+            out.push(ch);
+            col += 1;
+        }
+    }
+    out
 }
 
 /// Read up to `max_lines` lines from the file starting at `preview_start`.
@@ -44,7 +85,7 @@ pub fn build_preview(
         if lines.len() >= max_lines {
             break;
         }
-        lines.push((lnum, line.unwrap_or_default()));
+        lines.push((lnum, sanitize_line(&line.unwrap_or_default())));
     }
     Ok(PreviewData {
         lines,
@@ -104,8 +145,7 @@ pub fn style_preview(data: &PreviewData, file_name: &str) -> StyledPreview {
         .ok()
         .flatten()
         .unwrap_or_else(|| SYNTAXES.find_syntax_plain_text());
-    let theme = &THEMES.themes[DEFAULT_THEME];
-    let mut hl = HighlightLines::new(syntax, theme);
+    let mut hl = HighlightLines::new(syntax, &SYNTAX_THEME);
 
     let mut out_lines: Vec<Line<'static>> = Vec::with_capacity(data.lines.len());
     let mut highlight_index: Option<usize> = None;
@@ -191,6 +231,39 @@ mod tests {
         let styled = style_preview(&data, "a.rs");
         assert_eq!(styled.lines.len(), data.lines.len());
         assert_eq!(styled.highlight_index, Some(2));
+    }
+
+    #[test]
+    fn build_preview_expands_tabs_to_spaces() {
+        // Raw tab characters are control characters that ratatui's renderer
+        // silently drops (without advancing the cursor), which can corrupt
+        // the TUI display by leaving stale cells from earlier frames
+        // on-screen. Preview text must never contain a literal tab.
+        let dir = tempfile::tempdir().unwrap();
+        let p = write(dir.path(), "a.txt", "\tfoo\na\tb\n");
+        let data = build_preview(&p, None, 100).unwrap();
+        assert!(
+            data.lines.iter().all(|(_, t)| !t.contains('\t')),
+            "preview lines must not contain raw tab characters: {:?}",
+            data.lines
+        );
+        assert_eq!(data.lines[0].1, "    foo");
+        assert_eq!(data.lines[1].1, "a   b");
+    }
+
+    #[test]
+    fn build_preview_strips_other_control_characters() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = write(dir.path(), "a.txt", "a\u{7}b\n");
+        let data = build_preview(&p, None, 100).unwrap();
+        assert_eq!(data.lines[0].1, "ab");
+    }
+
+    #[test]
+    fn bundled_tokyo_night_theme_parses() {
+        // Force the lazy static to evaluate; panics (via .expect) if the
+        // bundled asset is missing or malformed.
+        Lazy::force(&SYNTAX_THEME);
     }
 
     #[test]
