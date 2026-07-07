@@ -1,6 +1,6 @@
 use crate::app::App;
 use crate::preview::StyledPreview;
-use ratatui::layout::{Constraint, Direction, Layout};
+use ratatui::layout::{Alignment, Constraint, Direction, Layout};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph};
@@ -23,8 +23,12 @@ pub fn render(f: &mut Frame, app: &App, preview: &StyledPreview) {
         .constraints([Constraint::Length(3), Constraint::Min(1)])
         .split(mid[0]);
 
-    let query = Paragraph::new(app.query.to_string())
-        .block(Block::default().borders(Borders::ALL).title("files"));
+    let query = Paragraph::new(app.query.to_string()).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(pad_title("files"))
+            .title_alignment(Alignment::Center),
+    );
     f.render_widget(query, left[0]);
 
     let items: Vec<ListItem> = app
@@ -50,7 +54,12 @@ pub fn render(f: &mut Frame, app: &App, preview: &StyledPreview) {
         state.select(Some(app.selected));
     }
     let list = List::new(items)
-        .block(Block::default().borders(Borders::ALL).title("results"))
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(pad_title("results"))
+                .title_alignment(Alignment::Center),
+        )
         .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
     f.render_stateful_widget(list, left[1], &mut state);
 
@@ -70,7 +79,8 @@ pub fn render(f: &mut Frame, app: &App, preview: &StyledPreview) {
     let preview_widget = Paragraph::new(preview_lines).block(
         Block::default()
             .borders(Borders::ALL)
-            .title(preview_title(app)),
+            .title(pad_title(&preview_title(app)))
+            .title_alignment(Alignment::Center),
     );
     f.render_widget(preview_widget, mid[1]);
 
@@ -85,6 +95,12 @@ fn preview_title(app: &App) -> String {
         Some(hit) => hit.path.to_string_lossy().into_owned(),
         None => "preview".to_string(),
     }
+}
+
+/// Add a space of padding on each side of a pane title so it doesn't
+/// touch the border characters.
+fn pad_title(title: &str) -> String {
+    format!(" {} ", title)
 }
 
 #[cfg(test)]
@@ -113,5 +129,10 @@ mod tests {
     fn preview_title_falls_back_when_no_results() {
         let app = App::new();
         assert_eq!(preview_title(&app), "preview");
+    }
+
+    #[test]
+    fn pad_title_adds_a_space_on_each_side() {
+        assert_eq!(pad_title("results"), " results ");
     }
 }
