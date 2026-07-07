@@ -52,23 +52,30 @@ fn main() {
 
     let cli = Cli::parse();
 
-    if let Err(e) = run(cli.path) {
+    if let Err(e) = run(cli.path, cli.query) {
         eprintln!("srchr: {e}");
         std::process::exit(1);
     }
 }
 
-fn run(root: PathBuf) -> io::Result<()> {
+fn run(root: PathBuf, initial_query: Option<String>) -> io::Result<()> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let mut app = App::new();
+    let seed = initial_query.unwrap_or_default();
+    let mut app = App::with_query(seed.clone());
     let (result_tx, result_rx): (Sender<SearchResult>, Receiver<SearchResult>) = mpsc::channel();
     let mut pending_query: Option<String> = None;
     let mut pending_at = Instant::now();
+
+    if !seed.is_empty() {
+        pending_query = Some(seed);
+        pending_at = Instant::now() - DEBOUNCE;
+        app.status = "searching...".to_string();
+    }
     let mut current_cancel: Option<Arc<AtomicBool>> = None;
     let mut launch_target: Option<(String, Option<usize>)> = None;
     let mut preview_key: Option<(PathBuf, Option<usize>)> = None;
