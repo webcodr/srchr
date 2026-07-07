@@ -45,12 +45,12 @@ struct Cli {
 }
 
 fn main() {
+    let cli = Cli::parse();
+
     if !io::stdin().is_terminal() || !io::stdout().is_terminal() {
         eprintln!("srchr: not a terminal (this is an interactive tool)");
         std::process::exit(2);
     }
-
-    let cli = Cli::parse();
 
     if let Err(e) = run(cli.path, cli.query) {
         eprintln!("srchr: {e}");
