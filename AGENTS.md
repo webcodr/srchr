@@ -1,45 +1,53 @@
 # AGENTS.md
 
-Shell functions for a unified fd + rg + fzf + bat file search (`srchr <term>`).
-No build system. Local smoke tests live in `tests/smoke.sh`; GitHub Actions runs the same script.
+Rust implementation for a unified live-grep file search (`srchr`). The binary
+embeds file walking, content search, fuzzy-style TUI selection, syntax preview,
+and editor launch behavior. Runtime external dependency: `$EDITOR` only.
 
 ## Structure
 
-- `srchr.fish` — fish implementation
-- `srchr.sh` — bash **and** zsh implementation (one sourceable file; syntax is kept POSIX-compatible for both)
+- `rust/` — Cargo crate for the `srchr` binary
+- `rust/src/search.rs` — gitignore-aware name/content search and aggregation
+- `rust/src/preview.rs` — preview windowing, binary/unreadable placeholders, syntect styling
+- `rust/src/editor.rs` — `$EDITOR` resolution, path safety, launch args
+- `rust/src/app.rs` — TUI state machine
+- `rust/src/ui.rs` — ratatui rendering
+- `rust/src/main.rs` — terminal setup, event loop, debounce, editor handoff
+- `rust/tests/` — integration tests
 - `docs/superpowers/specs/` — design docs; update when behavior changes
+- `docs/superpowers/plans/` — implementation plans
 
-## Critical invariant: keep the ports in sync
+## Behavior Invariants
 
-The two files implement the same function. The `sh -c` preview/enter snippets
-passed to fzf must stay **byte-identical** between `srchr.fish` and `srchr.sh`.
-Any behavior change goes into both files.
-
-Quoting differs by necessity, not choice:
-- fish: snippets are inline, using `\'` to escape single quotes (valid in fish only)
-- bash/zsh: snippets are assembled from local vars (`locate`/`preview`/`open`)
-  because those shells cannot escape `'` inside single quotes
-
-The search term is never interpolated into the fzf command strings (injection
-safety). It reaches the snippets via the `SRCHR_TERM` env var: `set -lx` in
-fish, env prefix on the fzf call only (`| SRCHR_TERM=$term fzf`) in sh —
-do not `export` it into the session.
-
-Snippets run via `sh -c '...' sh {}` (file arrives as `$1`) so they work no
-matter which shell fzf's `$SHELL -c` uses.
-
-Selected paths may begin with `+` or `-` (raw output from `fd`/`rg`). Keep the
-snippet guard that rewrites those relative paths to `./...` before calling
-`rg`, `bat`, or `$EDITOR`; otherwise nvim/vim can treat `+...` as editor
-commands and tools can treat `-...` as options.
+- The tool must not require `fd`, `rg`, `fzf`, or `bat` at runtime.
+- `$EDITOR` is required. If unset or empty, exit with a clear error instead of
+  guessing an editor.
+- Content and filename queries use smart-case regex semantics.
+- Results are file-level rows: content hits show a match count; name-only hits
+  show `[name]`.
+- Selected paths may begin with `+` or `-`. Keep the guard that rewrites those
+  relative paths to `./...` before calling `$EDITOR`; otherwise vim/nvim can
+  treat `+...` as editor commands or `-...` as options.
+- The interactive TUI needs a TTY. Agents cannot fully test it; ask the user for
+  a manual smoke test after changes that affect interaction.
 
 ## Verification
 
-- Run the automated smoke suite: `tests/smoke.sh`
-- The script covers syntax checks, fzf preview/bind parity across shell ports,
-  direct snippet behavior, and security smoke checks for leading-option terms
-  and selected paths beginning with `+` or `-`.
-- zsh is optional locally: the script uses direct `zsh` when installed, falls
-  back to Docker when available, and skips only when neither exists.
-- The interactive fzf flow needs a TTY; the agent cannot test it — ask the
-  user for a manual smoke test.
+Run the Rust checks from the workspace root:
+
+```sh
+cargo fmt --manifest-path rust/Cargo.toml -- --check
+cargo clippy --manifest-path rust/Cargo.toml -- -D warnings
+cargo test --manifest-path rust/Cargo.toml
+```
+
+GitHub Actions runs the same fmt/clippy/test gates in `.github/workflows/rust.yml`.
+
+Manual TUI smoke test:
+
+```sh
+cargo run --manifest-path rust/Cargo.toml -- .
+```
+
+Check live typing, result counts, `[name]` rows, preview highlight, arrow-key
+selection, `Enter` opening `$EDITOR`, and `Esc` restoring the terminal.
