@@ -122,15 +122,9 @@ fn run(root: PathBuf, initial_query: Option<String>) -> io::Result<()> {
                             if let Some(cancel) = current_cancel.take() {
                                 cancel.store(true, Ordering::Relaxed);
                             }
-                            if app.query.is_empty() {
-                                pending_query = None;
-                                app.set_results(Vec::new());
-                                app.status.clear();
-                            } else {
-                                pending_query = Some(app.query.clone());
-                                pending_at = Instant::now();
-                                app.status = "searching...".to_string();
-                            }
+                            pending_query = Some(app.query.clone());
+                            pending_at = Instant::now();
+                            app.status = "searching...".to_string();
                         }
                         Action::None => {}
                     }
