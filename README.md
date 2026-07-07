@@ -1,69 +1,68 @@
 # srchr
 
-Unified file search for your shell: one command that matches **file names**
-(via [fd](https://github.com/sharkdp/fd)) and **file contents** (via
-[ripgrep](https://github.com/BurntSushi/ripgrep)), merges the results into
-[fzf](https://github.com/junegunn/fzf), previews with
-[bat](https://github.com/sharkdp/bat), and opens your selection in `$EDITOR`.
+Self-contained live-grep file search in Rust. `srchr` searches file names and
+file contents, merges the results into an interactive terminal UI, previews the
+selected file with syntax highlighting, and opens your selection in `$EDITOR`.
 
-```
-srchr <search_term>
+Runtime external dependency: `$EDITOR` only.
+
+```sh
+srchr
 ```
 
-- Files whose **name** matches the term and files whose **contents** match
-  are combined and deduplicated into a single fzf picker.
-- **Smart preview:** if the selected file contains the term, the bat preview
-  jumps to the first matching line and highlights it; otherwise it shows the
-  file from the top.
-- **Smart open:** pressing enter opens `$EDITOR +<line> <file>` when the file
-  contains the term (vim/nvim/helix-style line jump), or `$EDITOR <file>`
-  otherwise.
-- Content matching is smart-case (`rg -S`), mirroring fd's default.
+- Type to run a live smart-case regex search over file names and file contents.
+- Results are deduplicated file rows.
+- Content hits show a match count, sorted before name-only hits.
+- Name-only hits show `[name]`.
+- The preview highlights the first content match with context above it, or shows
+  the file from the top for name-only hits.
+- Pressing `Enter` opens `$EDITOR +<line> <file>` for content hits, or
+  `$EDITOR <file>` for name-only hits.
 
 ## Requirements
 
-[fd](https://github.com/sharkdp/fd),
-[ripgrep](https://github.com/BurntSushi/ripgrep),
-[fzf](https://github.com/junegunn/fzf), and
-[bat](https://github.com/sharkdp/bat) on your `PATH`, plus an `$EDITOR` that
-understands `+<line>` (vim, nvim, helix, kakoune, nano, ...).
+- Rust toolchain to build from source.
+- `$EDITOR` set to an editor that understands `+<line>` for line jumps (vim,
+  nvim, helix, kakoune, nano, ...).
+
+If `$EDITOR` is unset or empty, `srchr` exits with a clear error.
+
+## Build
+
+```sh
+cargo build --manifest-path rust/Cargo.toml --release
+```
+
+The binary is at `rust/target/release/srchr`.
 
 ## Test
 
-Run the local smoke checks:
-
 ```sh
-tests/smoke.sh
+cargo fmt --manifest-path rust/Cargo.toml -- --check
+cargo clippy --manifest-path rust/Cargo.toml -- -D warnings
+cargo test --manifest-path rust/Cargo.toml
 ```
 
-This requires `fish` on your `PATH`.
+The interactive TUI still needs a manual TTY smoke test:
 
-The interactive fzf flow still needs a manual TTY smoke test.
+```sh
+cargo run --manifest-path rust/Cargo.toml -- .
+```
 
 ## Install
 
-### fish
-
-Copy (or symlink) `srchr.fish` into your functions directory:
-
-```fish
-ln -s (pwd)/srchr.fish ~/.config/fish/functions/srchr.fish
-```
-
-### bash / zsh
-
-Source `srchr.sh` from your `.bashrc` or `.zshrc`:
+Build the release binary and place it somewhere on your `PATH`, for example:
 
 ```sh
-source /path/to/srchr/srchr.sh
+cargo build --manifest-path rust/Cargo.toml --release
+install -Dm755 rust/target/release/srchr ~/.local/bin/srchr
 ```
 
 ## Notes
 
-- The search term is passed to the fzf preview/enter commands via the
-  `SRCHR_TERM` environment variable rather than string interpolation, so
-  terms containing quotes or shell metacharacters are safe.
-- Search terms are passed to `fd`/`rg` after `--`, and selected relative
-  paths starting with `+` or `-` are normalized before invoking `bat` or
-  `$EDITOR`, so option/command-looking inputs are treated as data.
-- `srchr.sh` is a single file that works in both bash and zsh.
+- Search respects gitignore rules.
+- Search terms are smart-case regexes for both content and filename matches.
+- Selected relative paths starting with `+` or `-` are normalized before
+  invoking `$EDITOR`, so option/command-looking paths are treated as data.
+- Preview uses an embedded default syntect theme; it does not read `bat` config
+  or require `bat` to be installed.
