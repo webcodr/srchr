@@ -51,7 +51,24 @@ cargo run --manifest-path rust/Cargo.toml -- .
 
 ## Install
 
-Build the release binary and place it somewhere on your `PATH`, for example:
+Install the latest release binary to `~/.local/bin/srchr`:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/webcodr/srchr/main/install.sh | sh
+```
+
+Install a specific release or a custom directory by setting environment
+variables on the `sh` side of the pipeline:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/webcodr/srchr/main/install.sh | SRCHR_VERSION=v0.1.0 sh
+curl -fsSL https://raw.githubusercontent.com/webcodr/srchr/main/install.sh | INSTALL_DIR="$HOME/bin" sh
+```
+
+The installer supports Linux and macOS on `x86_64` and `aarch64`.
+
+To build from source instead, build the release binary and place it somewhere on
+your `PATH`:
 
 ```sh
 cargo build --manifest-path rust/Cargo.toml --release
