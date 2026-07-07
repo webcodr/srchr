@@ -10,7 +10,12 @@ pub struct App {
 
 impl App {
     pub fn new() -> Self {
-        App { query: String::new(), results: Vec::new(), selected: 0, status: String::new() }
+        App {
+            query: String::new(),
+            results: Vec::new(),
+            selected: 0,
+            status: String::new(),
+        }
     }
 
     pub fn push_char(&mut self, c: char) {
@@ -56,7 +61,11 @@ mod tests {
     use std::path::PathBuf;
 
     fn hit(name: &str) -> FileHit {
-        FileHit { path: PathBuf::from(name), match_count: 1, first_line: Some(1) }
+        FileHit {
+            path: PathBuf::from(name),
+            match_count: 1,
+            first_line: Some(1),
+        }
     }
 
     #[test]

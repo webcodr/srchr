@@ -46,7 +46,10 @@ pub fn build_preview(
         }
         lines.push((lnum, line.unwrap_or_default()));
     }
-    Ok(PreviewData { lines, highlight: first_line })
+    Ok(PreviewData {
+        lines,
+        highlight: first_line,
+    })
 }
 
 pub struct StyledPreview {
@@ -91,7 +94,10 @@ pub fn style_preview(data: &PreviewData, file_name: &str) -> StyledPreview {
         out_lines.push(Line::from(spans));
     }
 
-    StyledPreview { lines: out_lines, highlight_index }
+    StyledPreview {
+        lines: out_lines,
+        highlight_index,
+    }
 }
 
 #[cfg(test)]

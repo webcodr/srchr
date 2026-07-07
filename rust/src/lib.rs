@@ -1,5 +1,5 @@
-pub mod search;
+pub mod app;
 pub mod editor;
 pub mod preview;
-pub mod app;
+pub mod search;
 pub mod ui;

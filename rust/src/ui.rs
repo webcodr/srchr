@@ -10,7 +10,11 @@ use ratatui::Frame;
 pub fn render(f: &mut Frame, app: &App, preview: &StyledPreview) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(3), Constraint::Min(1), Constraint::Length(1)])
+        .constraints([
+            Constraint::Length(3),
+            Constraint::Min(1),
+            Constraint::Length(1),
+        ])
         .split(f.area());
 
     let query = Paragraph::new(format!("> {}", app.query))
@@ -55,14 +59,15 @@ pub fn render(f: &mut Frame, app: &App, preview: &StyledPreview) {
         .enumerate()
         .map(|(i, line)| {
             if Some(i) == preview.highlight_index {
-                line.clone().style(Style::default().bg(Color::Rgb(60, 60, 80)))
+                line.clone()
+                    .style(Style::default().bg(Color::Rgb(60, 60, 80)))
             } else {
                 line.clone()
             }
         })
         .collect();
-    let preview_widget =
-        Paragraph::new(preview_lines).block(Block::default().borders(Borders::ALL).title("preview"));
+    let preview_widget = Paragraph::new(preview_lines)
+        .block(Block::default().borders(Borders::ALL).title("preview"));
     f.render_widget(preview_widget, mid[1]);
 
     let status = Paragraph::new(app.status.clone()).style(Style::default().fg(Color::DarkGray));

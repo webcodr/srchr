@@ -1,12 +1,12 @@
-use std::path::PathBuf;
-use std::path::Path;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use grep_regex::RegexMatcher;
-use grep_searcher::Searcher;
 use grep_searcher::sinks::UTF8;
+use grep_searcher::Searcher;
 use ignore::WalkBuilder;
 use regex::RegexBuilder;
+use std::path::Path;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 /// Smart-case: case-sensitive only when the query contains an uppercase char.
 pub fn is_case_sensitive(query: &str) -> bool {
@@ -41,7 +41,11 @@ impl Query {
             .case_insensitive(!case_sensitive)
             .build()
             .map_err(|e| e.to_string())?;
-        Ok(Query { content, name, case_sensitive })
+        Ok(Query {
+            content,
+            name,
+            case_sensitive,
+        })
     }
 }
 
@@ -192,9 +196,21 @@ mod tests {
     #[test]
     fn ordering_content_before_name_only_then_by_count() {
         let mut hits = vec![
-            FileHit { path: "z_name.rs".into(), match_count: 0, first_line: None },
-            FileHit { path: "b.rs".into(), match_count: 2, first_line: Some(1) },
-            FileHit { path: "a.rs".into(), match_count: 5, first_line: Some(3) },
+            FileHit {
+                path: "z_name.rs".into(),
+                match_count: 0,
+                first_line: None,
+            },
+            FileHit {
+                path: "b.rs".into(),
+                match_count: 2,
+                first_line: Some(1),
+            },
+            FileHit {
+                path: "a.rs".into(),
+                match_count: 5,
+                first_line: Some(3),
+            },
         ];
         sort_hits(&mut hits);
         let order: Vec<_> = hits.iter().map(|h| h.path.to_str().unwrap()).collect();
@@ -204,8 +220,16 @@ mod tests {
     #[test]
     fn ordering_breaks_count_ties_by_path() {
         let mut hits = vec![
-            FileHit { path: "b.rs".into(), match_count: 1, first_line: Some(1) },
-            FileHit { path: "a.rs".into(), match_count: 1, first_line: Some(1) },
+            FileHit {
+                path: "b.rs".into(),
+                match_count: 1,
+                first_line: Some(1),
+            },
+            FileHit {
+                path: "a.rs".into(),
+                match_count: 1,
+                first_line: Some(1),
+            },
         ];
         sort_hits(&mut hits);
         let order: Vec<_> = hits.iter().map(|h| h.path.to_str().unwrap()).collect();

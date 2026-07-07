@@ -54,7 +54,10 @@ mod tests {
 
     #[test]
     fn args_with_line_prepend_plus_line() {
-        assert_eq!(editor_args("src/main.rs", Some(42)), vec!["+42", "src/main.rs"]);
+        assert_eq!(
+            editor_args("src/main.rs", Some(42)),
+            vec!["+42", "src/main.rs"]
+        );
     }
 
     #[test]
@@ -88,7 +91,10 @@ mod tests {
         assert!(status.success());
 
         let mut s = String::new();
-        std::fs::File::open(&out).unwrap().read_to_string(&mut s).unwrap();
+        std::fs::File::open(&out)
+            .unwrap()
+            .read_to_string(&mut s)
+            .unwrap();
         assert_eq!(s, "+7\nfile.rs\n");
     }
 }

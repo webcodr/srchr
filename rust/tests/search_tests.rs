@@ -26,7 +26,12 @@ fn merges_name_and_content_hits_deduped() {
 
     let by_name: std::collections::HashMap<_, _> = hits
         .iter()
-        .map(|h| (h.path.file_name().unwrap().to_str().unwrap().to_string(), h.clone()))
+        .map(|h| {
+            (
+                h.path.file_name().unwrap().to_str().unwrap().to_string(),
+                h.clone(),
+            )
+        })
         .collect();
 
     let a = &by_name["alpha.rs"];
