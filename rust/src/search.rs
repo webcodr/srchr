@@ -68,6 +68,18 @@ pub fn name_matches(query: &Query, path: &Path) -> bool {
     }
 }
 
+/// Content matches first (by descending count), then name-only; ties by path.
+pub fn sort_hits(hits: &mut [FileHit]) {
+    hits.sort_by(|a, b| {
+        let a_name_only = a.first_line.is_none();
+        let b_name_only = b.first_line.is_none();
+        a_name_only
+            .cmp(&b_name_only)
+            .then_with(|| b.match_count.cmp(&a.match_count))
+            .then_with(|| a.path.cmp(&b.path))
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -138,5 +150,28 @@ mod tests {
         assert!(name_matches(&q, Path::new("README.md")));
         let q2 = Query::compile("README").unwrap();
         assert!(!name_matches(&q2, Path::new("readme.md")));
+    }
+
+    #[test]
+    fn ordering_content_before_name_only_then_by_count() {
+        let mut hits = vec![
+            FileHit { path: "z_name.rs".into(), match_count: 0, first_line: None },
+            FileHit { path: "b.rs".into(), match_count: 2, first_line: Some(1) },
+            FileHit { path: "a.rs".into(), match_count: 5, first_line: Some(3) },
+        ];
+        sort_hits(&mut hits);
+        let order: Vec<_> = hits.iter().map(|h| h.path.to_str().unwrap()).collect();
+        assert_eq!(order, vec!["a.rs", "b.rs", "z_name.rs"]);
+    }
+
+    #[test]
+    fn ordering_breaks_count_ties_by_path() {
+        let mut hits = vec![
+            FileHit { path: "b.rs".into(), match_count: 1, first_line: Some(1) },
+            FileHit { path: "a.rs".into(), match_count: 1, first_line: Some(1) },
+        ];
+        sort_hits(&mut hits);
+        let order: Vec<_> = hits.iter().map(|h| h.path.to_str().unwrap()).collect();
+        assert_eq!(order, vec!["a.rs", "b.rs"]);
     }
 }
