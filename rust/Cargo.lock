@@ -843,6 +843,7 @@ dependencies = [
  "grep-regex",
  "grep-searcher",
  "ignore",
+ "once_cell",
  "ratatui",
  "regex",
  "syntect",
