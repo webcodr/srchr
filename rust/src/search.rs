@@ -1,5 +1,8 @@
 use std::path::PathBuf;
+use std::path::Path;
 use grep_regex::RegexMatcher;
+use grep_searcher::Searcher;
+use grep_searcher::sinks::UTF8;
 use regex::RegexBuilder;
 
 /// Smart-case: case-sensitive only when the query contains an uppercase char.
@@ -39,6 +42,24 @@ impl Query {
     }
 }
 
+/// Returns (total match count, first matching line number 1-based).
+pub fn search_file_content(query: &Query, path: &Path) -> std::io::Result<(usize, Option<usize>)> {
+    let mut count = 0usize;
+    let mut first: Option<usize> = None;
+    Searcher::new().search_path(
+        &query.content,
+        path,
+        UTF8(|lnum, _line| {
+            count += 1;
+            if first.is_none() {
+                first = Some(lnum as usize);
+            }
+            Ok(true)
+        }),
+    )?;
+    Ok((count, first))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -66,5 +87,33 @@ mod tests {
     #[test]
     fn query_uppercase_is_case_sensitive() {
         assert!(Query::compile("Foo").unwrap().case_sensitive);
+    }
+
+    fn write_file(dir: &std::path::Path, name: &str, body: &str) -> PathBuf {
+        use std::io::Write;
+        let p = dir.join(name);
+        let mut f = std::fs::File::create(&p).unwrap();
+        f.write_all(body.as_bytes()).unwrap();
+        p
+    }
+
+    #[test]
+    fn content_search_counts_and_first_line() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = write_file(dir.path(), "a.txt", "alpha\nbeta\nalpha\n");
+        let q = Query::compile("alpha").unwrap();
+        let (count, first) = search_file_content(&q, &p).unwrap();
+        assert_eq!(count, 2);
+        assert_eq!(first, Some(1));
+    }
+
+    #[test]
+    fn content_search_no_match_is_zero() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = write_file(dir.path(), "a.txt", "nothing here\n");
+        let q = Query::compile("zzz").unwrap();
+        let (count, first) = search_file_content(&q, &p).unwrap();
+        assert_eq!(count, 0);
+        assert_eq!(first, None);
     }
 }
