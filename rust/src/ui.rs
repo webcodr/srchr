@@ -23,7 +23,7 @@ pub fn render(f: &mut Frame, app: &App, preview: &StyledPreview) {
         .constraints([Constraint::Length(3), Constraint::Min(1)])
         .split(mid[0]);
 
-    let query = Paragraph::new(format!("{}", app.query))
+    let query = Paragraph::new(app.query.to_string())
         .block(Block::default().borders(Borders::ALL).title("files"));
     f.render_widget(query, left[0]);
 
@@ -67,10 +67,51 @@ pub fn render(f: &mut Frame, app: &App, preview: &StyledPreview) {
             }
         })
         .collect();
-    let preview_widget = Paragraph::new(preview_lines)
-        .block(Block::default().borders(Borders::ALL).title("preview"));
+    let preview_widget = Paragraph::new(preview_lines).block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(preview_title(app)),
+    );
     f.render_widget(preview_widget, mid[1]);
 
     let status = Paragraph::new(app.status.clone()).style(Style::default().fg(Color::DarkGray));
     f.render_widget(status, chunks[1]);
+}
+
+/// Title for the preview pane: the selected file's path, or a fallback
+/// label when nothing is selected.
+fn preview_title(app: &App) -> String {
+    match app.selected_hit() {
+        Some(hit) => hit.path.to_string_lossy().into_owned(),
+        None => "preview".to_string(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::search::FileHit;
+    use std::path::PathBuf;
+
+    fn hit(name: &str) -> FileHit {
+        FileHit {
+            path: PathBuf::from(name),
+            match_count: 1,
+            first_line: Some(1),
+        }
+    }
+
+    #[test]
+    fn preview_title_shows_selected_file_path() {
+        let mut app = App::new();
+        app.set_results(vec![hit("src/main.rs"), hit("src/lib.rs")]);
+        app.selected = 1;
+        assert_eq!(preview_title(&app), "src/lib.rs");
+    }
+
+    #[test]
+    fn preview_title_falls_back_when_no_results() {
+        let app = App::new();
+        assert_eq!(preview_title(&app), "preview");
+    }
 }
