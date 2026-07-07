@@ -128,6 +128,34 @@ pub fn search(query: &Query, root: &Path, cancel: &Arc<AtomicBool>) -> Vec<FileH
     hits
 }
 
+/// Walk `root` (gitignore-aware), producing one FileHit per file with no
+/// query applied. Used when the search query is empty, to browse the whole
+/// tree. Returns empty if `cancel` is set. Cancellation is checked per entry.
+pub fn list_dir(root: &Path, cancel: &Arc<AtomicBool>) -> Vec<FileHit> {
+    let mut hits: Vec<FileHit> = Vec::new();
+
+    for result in WalkBuilder::new(root).require_git(false).build() {
+        if cancel.load(Ordering::Relaxed) {
+            return Vec::new();
+        }
+        let entry = match result {
+            Ok(e) => e,
+            Err(_) => continue, // skip unreadable entries silently
+        };
+        if !entry.file_type().is_some_and(|ft| ft.is_file()) {
+            continue;
+        }
+        hits.push(FileHit {
+            path: normalize_path(entry.path()),
+            match_count: 0,
+            first_line: None,
+        });
+    }
+
+    sort_hits(&mut hits);
+    hits
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
