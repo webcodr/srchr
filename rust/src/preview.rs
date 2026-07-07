@@ -52,6 +52,30 @@ pub fn build_preview(
     })
 }
 
+/// Like `build_preview`, but detects binary/unreadable files and returns a
+/// placeholder instead of garbage.
+pub fn build_preview_safe(path: &Path, first_line: Option<usize>, max_lines: usize) -> PreviewData {
+    let bytes = match std::fs::read(path) {
+        Ok(b) => b,
+        Err(_) => {
+            return PreviewData {
+                lines: vec![(1, "<unreadable file>".into())],
+                highlight: None,
+            }
+        }
+    };
+    if bytes.iter().take(8192).any(|b| *b == 0) {
+        return PreviewData {
+            lines: vec![(1, "<binary file>".into())],
+            highlight: None,
+        };
+    }
+    build_preview(path, first_line, max_lines).unwrap_or(PreviewData {
+        lines: vec![(1, "<unreadable file>".into())],
+        highlight: None,
+    })
+}
+
 pub struct StyledPreview {
     pub lines: Vec<Line<'static>>,
     /// Index into `lines` of the match row, if any.
@@ -156,5 +180,14 @@ mod tests {
         let styled = style_preview(&data, "a.rs");
         assert_eq!(styled.lines.len(), data.lines.len());
         assert_eq!(styled.highlight_index, Some(2));
+    }
+
+    #[test]
+    fn binary_content_yields_placeholder() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("bin.dat");
+        std::fs::write(&p, [0u8, 159, 146, 150, 0, 1, 2]).unwrap();
+        let data = build_preview_safe(&p, None, 100);
+        assert!(data.lines.iter().any(|(_, t)| t.contains("binary")));
     }
 }

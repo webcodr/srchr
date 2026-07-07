@@ -16,7 +16,7 @@ use ratatui::Terminal;
 
 use srchr::app::App;
 use srchr::editor;
-use srchr::preview::{build_preview, style_preview, PreviewData, StyledPreview};
+use srchr::preview::{build_preview_safe, style_preview, PreviewData, StyledPreview};
 use srchr::search::{search, FileHit, Query};
 
 const DEBOUNCE: Duration = Duration::from_millis(60);
@@ -172,10 +172,8 @@ fn current_preview(app: &App) -> StyledPreview {
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
                 .unwrap_or_default();
-            match build_preview(&hit.path, hit.first_line, PREVIEW_MAX_LINES) {
-                Ok(data) => style_preview(&data, &name),
-                Err(_) => empty_preview("<unreadable>"),
-            }
+            let data = build_preview_safe(&hit.path, hit.first_line, PREVIEW_MAX_LINES);
+            style_preview(&data, &name)
         }
         None => empty_preview(""),
     }
