@@ -7,6 +7,10 @@ edition = "2021"
 name = "srchr"
 path = "src/main.rs"
 
+[lib]
+name = "srchr"
+path = "src/lib.rs"
+
 [dependencies]
 ignore = "0.4"
 grep-regex = "0.1"

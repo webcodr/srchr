@@ -1,8 +1,11 @@
 use std::path::PathBuf;
 use std::path::Path;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use grep_regex::RegexMatcher;
 use grep_searcher::Searcher;
 use grep_searcher::sinks::UTF8;
+use ignore::WalkBuilder;
 use regex::RegexBuilder;
 
 /// Smart-case: case-sensitive only when the query contains an uppercase char.
@@ -78,6 +81,40 @@ pub fn sort_hits(hits: &mut [FileHit]) {
             .then_with(|| b.match_count.cmp(&a.match_count))
             .then_with(|| a.path.cmp(&b.path))
     });
+}
+
+/// Walk `root` (gitignore-aware), producing one FileHit per matching file.
+/// Returns empty if `cancel` is set. Cancellation is checked per entry.
+pub fn search(query: &Query, root: &Path, cancel: &Arc<AtomicBool>) -> Vec<FileHit> {
+    let mut hits: Vec<FileHit> = Vec::new();
+
+    for result in WalkBuilder::new(root).require_git(false).build() {
+        if cancel.load(Ordering::Relaxed) {
+            return Vec::new();
+        }
+        let entry = match result {
+            Ok(e) => e,
+            Err(_) => continue, // skip unreadable entries silently
+        };
+        if !entry.file_type().is_some_and(|ft| ft.is_file()) {
+            continue;
+        }
+        let path = entry.path();
+
+        let name_hit = name_matches(query, path);
+        let (count, first) = search_file_content(query, path).unwrap_or((0, None));
+
+        if count > 0 || name_hit {
+            hits.push(FileHit {
+                path: path.to_path_buf(),
+                match_count: count,
+                first_line: first,
+            });
+        }
+    }
+
+    sort_hits(&mut hits);
+    hits
 }
 
 #[cfg(test)]
