@@ -68,14 +68,9 @@ fn run(root: PathBuf, initial_query: Option<String>) -> io::Result<()> {
     let seed = initial_query.unwrap_or_default();
     let mut app = App::with_query(seed.clone());
     let (result_tx, result_rx): (Sender<SearchResult>, Receiver<SearchResult>) = mpsc::channel();
-    let mut pending_query: Option<String> = None;
-    let mut pending_at = Instant::now();
-
-    if !seed.is_empty() {
-        pending_query = Some(seed);
-        pending_at = Instant::now() - DEBOUNCE;
-        app.status = "searching...".to_string();
-    }
+    let mut pending_query: Option<String> = Some(seed);
+    let mut pending_at = Instant::now() - DEBOUNCE;
+    app.status = "searching...".to_string();
     let mut current_cancel: Option<Arc<AtomicBool>> = None;
     let mut launch_target: Option<(String, Option<usize>)> = None;
     let mut preview_key: Option<(PathBuf, Option<usize>)> = None;
