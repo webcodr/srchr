@@ -75,6 +75,13 @@ pub fn name_matches(query: &Query, path: &Path) -> bool {
     }
 }
 
+/// Strip a leading "./" path component so rows read "src/main.rs" instead of
+/// "./src/main.rs" when the search root is ".". Paths built from other roots
+/// are unaffected, since they never gain this prefix from `WalkBuilder`.
+fn normalize_path(path: &Path) -> PathBuf {
+    path.strip_prefix(".").unwrap_or(path).to_path_buf()
+}
+
 /// Content matches first (by descending count), then name-only; ties by path.
 pub fn sort_hits(hits: &mut [FileHit]) {
     hits.sort_by(|a, b| {
@@ -191,6 +198,26 @@ mod tests {
         assert!(name_matches(&q, Path::new("README.md")));
         let q2 = Query::compile("README").unwrap();
         assert!(!name_matches(&q2, Path::new("readme.md")));
+    }
+
+    #[test]
+    fn normalize_path_strips_leading_dot_slash() {
+        assert_eq!(
+            normalize_path(Path::new("./src/main.rs")),
+            PathBuf::from("src/main.rs")
+        );
+    }
+
+    #[test]
+    fn normalize_path_leaves_other_paths_unchanged() {
+        assert_eq!(
+            normalize_path(Path::new("src/main.rs")),
+            PathBuf::from("src/main.rs")
+        );
+        assert_eq!(
+            normalize_path(Path::new("/tmp/foo/bar.rs")),
+            PathBuf::from("/tmp/foo/bar.rs")
+        );
     }
 
     #[test]
