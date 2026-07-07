@@ -10,8 +10,12 @@ pub struct App {
 
 impl App {
     pub fn new() -> Self {
+        App::with_query(String::new())
+    }
+
+    pub fn with_query(query: String) -> Self {
         App {
-            query: String::new(),
+            query,
             results: Vec::new(),
             selected: 0,
             status: String::new(),
@@ -75,6 +79,18 @@ mod tests {
         app.push_char('b');
         app.backspace();
         assert_eq!(app.query, "a");
+    }
+
+    #[test]
+    fn with_query_seeds_the_query() {
+        let app = App::with_query("foo".to_string());
+        assert_eq!(app.query, "foo");
+    }
+
+    #[test]
+    fn new_starts_with_empty_query() {
+        let app = App::new();
+        assert_eq!(app.query, "");
     }
 
     #[test]
