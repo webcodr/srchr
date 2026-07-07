@@ -60,6 +60,14 @@ pub fn search_file_content(query: &Query, path: &Path) -> std::io::Result<(usize
     Ok((count, first))
 }
 
+/// True if the file's basename matches the query (mirrors `fd` default).
+pub fn name_matches(query: &Query, path: &Path) -> bool {
+    match path.file_name().and_then(|n| n.to_str()) {
+        Some(name) => query.name.is_match(name),
+        None => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -115,5 +123,20 @@ mod tests {
         let (count, first) = search_file_content(&q, &p).unwrap();
         assert_eq!(count, 0);
         assert_eq!(first, None);
+    }
+
+    #[test]
+    fn filename_match_uses_basename() {
+        let q = Query::compile("config").unwrap();
+        assert!(name_matches(&q, Path::new("src/config.rs")));
+        assert!(!name_matches(&q, Path::new("src/main.rs")));
+    }
+
+    #[test]
+    fn filename_match_is_smart_case() {
+        let q = Query::compile("readme").unwrap();
+        assert!(name_matches(&q, Path::new("README.md")));
+        let q2 = Query::compile("README").unwrap();
+        assert!(!name_matches(&q2, Path::new("readme.md")));
     }
 }
