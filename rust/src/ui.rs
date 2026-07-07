@@ -23,8 +23,8 @@ pub fn render(f: &mut Frame, app: &App, preview: &StyledPreview) {
         .constraints([Constraint::Length(3), Constraint::Min(1)])
         .split(mid[0]);
 
-    let query = Paragraph::new(format!("> {}", app.query))
-        .block(Block::default().borders(Borders::ALL).title("query"));
+    let query = Paragraph::new(format!("{}", app.query))
+        .block(Block::default().borders(Borders::ALL).title("files"));
     f.render_widget(query, left[0]);
 
     let items: Vec<ListItem> = app
