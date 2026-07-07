@@ -10,21 +10,22 @@ use ratatui::Frame;
 pub fn render(f: &mut Frame, app: &App, preview: &StyledPreview) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3),
-            Constraint::Min(1),
-            Constraint::Length(1),
-        ])
+        .constraints([Constraint::Min(1), Constraint::Length(1)])
         .split(f.area());
-
-    let query = Paragraph::new(format!("> {}", app.query))
-        .block(Block::default().borders(Borders::ALL).title("query"));
-    f.render_widget(query, chunks[0]);
 
     let mid = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(45), Constraint::Percentage(55)])
-        .split(chunks[1]);
+        .split(chunks[0]);
+
+    let left = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(3), Constraint::Min(1)])
+        .split(mid[0]);
+
+    let query = Paragraph::new(format!("> {}", app.query))
+        .block(Block::default().borders(Borders::ALL).title("query"));
+    f.render_widget(query, left[0]);
 
     let items: Vec<ListItem> = app
         .results
@@ -51,7 +52,7 @@ pub fn render(f: &mut Frame, app: &App, preview: &StyledPreview) {
     let list = List::new(items)
         .block(Block::default().borders(Borders::ALL).title("results"))
         .highlight_style(Style::default().add_modifier(Modifier::REVERSED));
-    f.render_stateful_widget(list, mid[0], &mut state);
+    f.render_stateful_widget(list, left[1], &mut state);
 
     let preview_lines: Vec<Line> = preview
         .lines
@@ -71,5 +72,5 @@ pub fn render(f: &mut Frame, app: &App, preview: &StyledPreview) {
     f.render_widget(preview_widget, mid[1]);
 
     let status = Paragraph::new(app.status.clone()).style(Style::default().fg(Color::DarkGray));
-    f.render_widget(status, chunks[2]);
+    f.render_widget(status, chunks[1]);
 }
