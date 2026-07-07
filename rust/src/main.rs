@@ -14,6 +14,8 @@ use crossterm::terminal::{
 use ratatui::backend::CrosstermBackend;
 use ratatui::Terminal;
 
+use clap::Parser;
+
 use srchr::app::App;
 use srchr::editor;
 use srchr::preview::{build_preview_safe, style_preview, PreviewData, StyledPreview};
@@ -29,34 +31,51 @@ struct SearchResult {
     error: Option<String>,
 }
 
+/// Live-grep file search with fuzzy selection and syntax preview.
+#[derive(Parser, Debug)]
+#[command(version, about)]
+struct Cli {
+    /// Directory to search (defaults to the current directory).
+    #[arg(default_value = ".")]
+    path: PathBuf,
+
+    /// Prefill the search query and run it immediately on startup.
+    #[arg(short, long)]
+    query: Option<String>,
+}
+
 fn main() {
+    let cli = Cli::parse();
+
     if !io::stdin().is_terminal() || !io::stdout().is_terminal() {
         eprintln!("srchr: not a terminal (this is an interactive tool)");
         std::process::exit(2);
     }
 
-    let root = std::env::args()
-        .nth(1)
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("."));
-
-    if let Err(e) = run(root) {
+    if let Err(e) = run(cli.path, cli.query) {
         eprintln!("srchr: {e}");
         std::process::exit(1);
     }
 }
 
-fn run(root: PathBuf) -> io::Result<()> {
+fn run(root: PathBuf, initial_query: Option<String>) -> io::Result<()> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let mut app = App::new();
+    let seed = initial_query.unwrap_or_default();
+    let mut app = App::with_query(seed.clone());
     let (result_tx, result_rx): (Sender<SearchResult>, Receiver<SearchResult>) = mpsc::channel();
     let mut pending_query: Option<String> = None;
     let mut pending_at = Instant::now();
+
+    if !seed.is_empty() {
+        pending_query = Some(seed);
+        pending_at = Instant::now() - DEBOUNCE;
+        app.status = "searching...".to_string();
+    }
     let mut current_cancel: Option<Arc<AtomicBool>> = None;
     let mut launch_target: Option<(String, Option<usize>)> = None;
     let mut preview_key: Option<(PathBuf, Option<usize>)> = None;
@@ -265,5 +284,27 @@ mod tests {
         let action = handle_key(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE), &mut app);
         assert_eq!(action, Action::None);
         assert_eq!(app.selected, 0);
+    }
+
+    #[test]
+    fn cli_definition_is_valid() {
+        use clap::CommandFactory;
+        Cli::command().debug_assert();
+    }
+
+    #[test]
+    fn cli_defaults_path_to_dot_and_no_query() {
+        use clap::Parser;
+        let cli = Cli::parse_from(["srchr"]);
+        assert_eq!(cli.path, PathBuf::from("."));
+        assert_eq!(cli.query, None);
+    }
+
+    #[test]
+    fn cli_parses_path_and_query() {
+        use clap::Parser;
+        let cli = Cli::parse_from(["srchr", "src", "-q", "fn"]);
+        assert_eq!(cli.path, PathBuf::from("src"));
+        assert_eq!(cli.query.as_deref(), Some("fn"));
     }
 }
