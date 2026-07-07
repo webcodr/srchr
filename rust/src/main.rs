@@ -59,73 +59,91 @@ fn run(root: PathBuf) -> io::Result<()> {
     let mut pending_at = Instant::now();
     let mut current_cancel: Option<Arc<AtomicBool>> = None;
     let mut launch_target: Option<(String, Option<usize>)> = None;
+    let mut preview_key: Option<(PathBuf, Option<usize>)> = None;
+    let mut styled_preview = empty_preview("");
 
-    loop {
-        while let Ok(res) = result_rx.try_recv() {
-            if res.query == app.query {
-                app.set_results(res.hits);
-                app.status = match res.error {
-                    Some(e) => format!("invalid pattern: {e}"),
-                    None => format!("{} files", app.results.len()),
-                };
-            }
-        }
-
-        if let Some(q) = pending_query.clone() {
-            if pending_at.elapsed() >= DEBOUNCE {
-                pending_query = None;
-                if let Some(cancel) = current_cancel.take() {
-                    cancel.store(true, Ordering::Relaxed);
-                }
-                current_cancel = Some(spawn_search(&q, &root, result_tx.clone()));
-            }
-        }
-
-        let styled = current_preview(&app);
-        terminal.draw(|f| srchr::ui::render(f, &app, &styled))?;
-
-        if event::poll(POLL_INTERVAL)? {
-            if let Event::Key(key) = event::read()? {
-                match handle_key(key, &mut app) {
-                    Action::Quit => break,
-                    Action::Open => {
-                        if let Some(hit) = app.selected_hit() {
-                            launch_target =
-                                Some((hit.path.to_string_lossy().into_owned(), hit.first_line));
-                        }
-                        break;
-                    }
-                    Action::QueryChanged => {
-                        if let Some(cancel) = current_cancel.take() {
-                            cancel.store(true, Ordering::Relaxed);
-                        }
-                        if app.query.is_empty() {
-                            pending_query = None;
-                            app.set_results(Vec::new());
-                            app.status.clear();
-                        } else {
-                            pending_query = Some(app.query.clone());
-                            pending_at = Instant::now();
-                            app.status = "searching...".to_string();
-                        }
-                    }
-                    Action::None => {}
+    let loop_result = (|| -> io::Result<()> {
+        loop {
+            while let Ok(res) = result_rx.try_recv() {
+                if res.query == app.query {
+                    app.set_results(res.hits);
+                    app.status = match res.error {
+                        Some(e) => format!("invalid pattern: {e}"),
+                        None => format!("{} files", app.results.len()),
+                    };
                 }
             }
+
+            if let Some(q) = pending_query.clone() {
+                if pending_at.elapsed() >= DEBOUNCE {
+                    pending_query = None;
+                    if let Some(cancel) = current_cancel.take() {
+                        cancel.store(true, Ordering::Relaxed);
+                    }
+                    current_cancel = Some(spawn_search(&q, &root, result_tx.clone()));
+                }
+            }
+
+            let selected_key = app
+                .selected_hit()
+                .map(|hit| (hit.path.clone(), hit.first_line));
+            if selected_key != preview_key {
+                styled_preview = current_preview(&app);
+                preview_key = selected_key;
+            }
+            terminal.draw(|f| srchr::ui::render(f, &app, &styled_preview))?;
+
+            if event::poll(POLL_INTERVAL)? {
+                if let Event::Key(key) = event::read()? {
+                    match handle_key(key, &mut app) {
+                        Action::Quit => return Ok(()),
+                        Action::Open => {
+                            if let Some(hit) = app.selected_hit() {
+                                launch_target =
+                                    Some((hit.path.to_string_lossy().into_owned(), hit.first_line));
+                            }
+                            return Ok(());
+                        }
+                        Action::QueryChanged => {
+                            if let Some(cancel) = current_cancel.take() {
+                                cancel.store(true, Ordering::Relaxed);
+                            }
+                            if app.query.is_empty() {
+                                pending_query = None;
+                                app.set_results(Vec::new());
+                                app.status.clear();
+                            } else {
+                                pending_query = Some(app.query.clone());
+                                pending_at = Instant::now();
+                                app.status = "searching...".to_string();
+                            }
+                        }
+                        Action::None => {}
+                    }
+                }
+            }
         }
-    }
+    })();
 
     if let Some(cancel) = current_cancel {
         cancel.store(true, Ordering::Relaxed);
     }
 
-    disable_raw_mode()?;
-    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
-    terminal.show_cursor()?;
+    let raw_result = disable_raw_mode();
+    let screen_result = execute!(terminal.backend_mut(), LeaveAlternateScreen);
+    let cursor_result = terminal.show_cursor();
+
+    loop_result?;
+    raw_result?;
+    screen_result?;
+    cursor_result?;
 
     if let Some((path, line)) = launch_target {
         let ed = editor::resolve_editor().map_err(io::Error::other)?;
-        editor::launch(&ed, &editor::editor_args(&path, line))?;
+        let status = editor::launch(&ed, &editor::editor_args(&path, line))?;
+        if !status.success() {
+            return Err(io::Error::other(format!("editor exited with {status}")));
+        }
     }
 
     Ok(())

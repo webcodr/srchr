@@ -1,4 +1,4 @@
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 
 use once_cell::sync::Lazy;
@@ -55,8 +55,8 @@ pub fn build_preview(
 /// Like `build_preview`, but detects binary/unreadable files and returns a
 /// placeholder instead of garbage.
 pub fn build_preview_safe(path: &Path, first_line: Option<usize>, max_lines: usize) -> PreviewData {
-    let bytes = match std::fs::read(path) {
-        Ok(b) => b,
+    let mut file = match std::fs::File::open(path) {
+        Ok(f) => f,
         Err(_) => {
             return PreviewData {
                 lines: vec![(1, "<unreadable file>".into())],
@@ -64,7 +64,17 @@ pub fn build_preview_safe(path: &Path, first_line: Option<usize>, max_lines: usi
             }
         }
     };
-    if bytes.iter().take(8192).any(|b| *b == 0) {
+    let mut prefix = [0u8; 8192];
+    let bytes_read = match file.read(&mut prefix) {
+        Ok(n) => n,
+        Err(_) => {
+            return PreviewData {
+                lines: vec![(1, "<unreadable file>".into())],
+                highlight: None,
+            }
+        }
+    };
+    if prefix[..bytes_read].contains(&0) {
         return PreviewData {
             lines: vec![(1, "<binary file>".into())],
             highlight: None,
@@ -76,6 +86,7 @@ pub fn build_preview_safe(path: &Path, first_line: Option<usize>, max_lines: usi
     })
 }
 
+#[derive(Clone)]
 pub struct StyledPreview {
     pub lines: Vec<Line<'static>>,
     /// Index into `lines` of the match row, if any.
@@ -189,5 +200,17 @@ mod tests {
         std::fs::write(&p, [0u8, 159, 146, 150, 0, 1, 2]).unwrap();
         let data = build_preview_safe(&p, None, 100);
         assert!(data.lines.iter().any(|(_, t)| t.contains("binary")));
+    }
+
+    #[test]
+    fn safe_preview_respects_line_cap_for_text_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let body = (1..=100)
+            .map(|n| format!("line {n}"))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let p = write(dir.path(), "large.txt", &body);
+        let data = build_preview_safe(&p, None, 5);
+        assert_eq!(data.lines.len(), 5);
     }
 }
