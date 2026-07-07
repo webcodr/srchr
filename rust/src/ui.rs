@@ -32,10 +32,10 @@ pub fn render(f: &mut Frame, app: &App, preview: &StyledPreview) {
         .iter()
         .map(|h| {
             let path = h.path.to_string_lossy();
-            let tag = if h.first_line.is_none() {
-                "[name]".to_string()
-            } else {
+            let tag = if h.first_line.is_some() {
                 format!("({})", h.match_count)
+            } else {
+                "".to_string()
             };
             ListItem::new(Line::from(vec![
                 Span::raw(path.into_owned()),
