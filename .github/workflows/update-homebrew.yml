@@ -1,0 +1,120 @@
+name: Update Homebrew Formula
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Published release tag to publish (for example, v0.2.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  update-formula:
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.tag }}
+    steps:
+      - name: Check out the formula template
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.0
+        with:
+          path: source
+          persist-credentials: false
+
+      - name: Validate published release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tag must use stable vX.Y.Z format; received: $TAG" >&2
+            exit 1
+          fi
+          if [ "$(gh release view "$TAG" --json isDraft --jq '.isDraft')" = "true" ]; then
+            echo "Homebrew assets must come from a published release" >&2
+            exit 1
+          fi
+
+      - name: Download release archives
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          mkdir -p assets
+          gh release download "$TAG" --dir assets \
+            --pattern "srchr-${TAG}-macos-aarch64.tar.gz" \
+            --pattern "srchr-${TAG}-macos-x86-64.tar.gz" \
+            --pattern "srchr-${TAG}-linux-aarch64.tar.gz" \
+            --pattern "srchr-${TAG}-linux-x86-64.tar.gz"
+
+          expected=4
+          actual="$(find assets -maxdepth 1 -type f -name 'srchr-*.tar.gz' | wc -l)"
+          if [ "$actual" -ne "$expected" ]; then
+            echo "Expected $expected release archives, found $actual" >&2
+            exit 1
+          fi
+
+      - name: Render formula
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          archive_sha() {
+            sha256sum "assets/$1" | awk '{print $1}'
+          }
+
+          mkdir -p rendered
+          sed \
+            -e "s/VERSION/${version}/g" \
+            -e "s/TAG/${TAG}/g" \
+            -e "s/SHA256_MACOS_AARCH64/$(archive_sha "srchr-${TAG}-macos-aarch64.tar.gz")/g" \
+            -e "s/SHA256_MACOS_X86_64/$(archive_sha "srchr-${TAG}-macos-x86-64.tar.gz")/g" \
+            -e "s/SHA256_LINUX_AARCH64/$(archive_sha "srchr-${TAG}-linux-aarch64.tar.gz")/g" \
+            -e "s/SHA256_LINUX_X86_64/$(archive_sha "srchr-${TAG}-linux-x86-64.tar.gz")/g" \
+            source/Formula/srchr.rb > rendered/srchr.rb
+
+      - name: Check out the Homebrew tap
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.0
+        with:
+          repository: webcodr/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+          persist-credentials: false
+
+      - name: Add rendered formula to the tap
+        run: |
+          mkdir -p tap/Formula
+          cp rendered/srchr.rb tap/Formula/srchr.rb
+
+      - name: Set up Homebrew
+        uses: Homebrew/actions/setup-homebrew@18fcb8e3e06b4247c676c506750dc95ea7226479 # main
+
+      - name: Audit and test formula on Linux
+        working-directory: tap
+        run: |
+          set -euo pipefail
+          export HOMEBREW_NO_AUTO_UPDATE=1
+          brew audit --strict --online --formula Formula/srchr.rb
+          brew install --formula Formula/srchr.rb
+          brew test Formula/srchr.rb
+
+      - name: Commit formula update
+        working-directory: tap
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- Formula/srchr.rb; then
+            echo "Formula already matches ${TAG}; nothing to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/srchr.rb
+          git commit -m "srchr ${TAG#v}"
+          git push "https://x-access-token:${TAP_TOKEN}@github.com/webcodr/homebrew-tap.git" HEAD:main

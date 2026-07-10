@@ -103,6 +103,8 @@ GitHub with a test version and checking that:
 
 - No automatic release on Git tag push.
 - No automatic `v` prefixing.
-- No checks that `Cargo.toml` package version matches the workflow input.
-- No publishing to package managers.
+- The release workflow now checks that `Cargo.toml` matches the tag; see
+  `2026-07-10-homebrew-release-design.md`.
+- Homebrew tap publication is documented separately in
+  `2026-07-10-homebrew-release-design.md`.
 - No installer packages or zip files.

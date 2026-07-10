@@ -51,6 +51,14 @@ cargo run --manifest-path rust/Cargo.toml -- .
 
 ## Install
 
+### Homebrew
+
+```sh
+brew install webcodr/tap/srchr
+```
+
+### Release binary
+
 Install the latest release binary to `~/.local/bin/srchr`:
 
 ```sh
@@ -61,8 +69,10 @@ Install a specific release or a custom directory by setting environment
 variables on the `sh` side of the pipeline:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/webcodr/srchr/main/install.sh | SRCHR_VERSION=v0.1.0 sh
-curl -fsSL https://raw.githubusercontent.com/webcodr/srchr/main/install.sh | INSTALL_DIR="$HOME/bin" sh
+curl -fsSL https://raw.githubusercontent.com/webcodr/srchr/main/install.sh | \
+  SRCHR_VERSION=v0.1.0 sh
+curl -fsSL https://raw.githubusercontent.com/webcodr/srchr/main/install.sh | \
+  INSTALL_DIR="$HOME/bin" sh
 ```
 
 The installer supports Linux and macOS on `x86_64` and `aarch64`.

@@ -1,28 +1,55 @@
 name: Build and Release
-run-name: Release ${{ inputs.version }}
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: Version
+        description: "Release tag (for example, v0.2.0)"
         required: true
-        default: 0.1.0
+        type: string
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  create_release:
+  validate_release:
     runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.0
+        with:
+          persist-credentials: false
+      - name: Validate release tag and package version
+        run: |
+          set -euo pipefail
+          tag="$RELEASE_TAG"
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tag must use stable vX.Y.Z format; received: $tag" >&2
+            exit 1
+          fi
+
+          cargo_version="$(grep -m1 '^version = ' rust/Cargo.toml | cut -d '"' -f2)"
+          if [ "$cargo_version" != "${tag#v}" ]; then
+            echo "Cargo package version ($cargo_version) must match release tag ($tag)" >&2
+            exit 1
+          fi
+
+  create_release:
+    needs: validate_release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ inputs.version }}
     steps:
       - name: Create draft release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.3.3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ inputs.version }}
-          name: ${{ inputs.version }}
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: ${{ env.RELEASE_TAG }}
           target_commitish: ${{ github.sha }}
           draft: true
           prerelease: false
@@ -30,6 +57,10 @@ jobs:
   build:
     runs-on: ${{ matrix.runner }}
     needs: create_release
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ inputs.version }}
     strategy:
       matrix:
         include:
@@ -62,10 +93,12 @@ jobs:
         working-directory: rust
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.0
+        with:
+          persist-credentials: false
 
       - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
 
       - name: Install Linux aarch64 linker
         if: ${{ matrix.name == 'linux-aarch64' }}
@@ -84,19 +117,19 @@ jobs:
         run: cargo build --release --target=${{ matrix.target }}
 
       - name: Upload raw artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: srchr-${{ inputs.version }}-${{ matrix.name }}
+          name: srchr-${{ env.RELEASE_TAG }}-${{ matrix.name }}
           path: rust/target/${{ matrix.target }}/release/${{ matrix.artifact }}
 
       - name: Compress artifact
-        run: tar -czf ../srchr-${{ inputs.version }}-${{ matrix.name }}.tar.gz -C target/${{ matrix.target }}/release ${{ matrix.artifact }}
+        run: tar -czf "../srchr-${RELEASE_TAG}-${{ matrix.name }}.tar.gz" -C "target/${{ matrix.target }}/release" "${{ matrix.artifact }}"
 
       - name: Upload release asset
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.3.3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ inputs.version }}
+          tag_name: ${{ env.RELEASE_TAG }}
           draft: true
-          files: srchr-${{ inputs.version }}-${{ matrix.name }}.tar.gz
+          files: srchr-${{ env.RELEASE_TAG }}-${{ matrix.name }}.tar.gz
