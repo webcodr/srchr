@@ -99,9 +99,11 @@ jobs:
         run: |
           set -euo pipefail
           export HOMEBREW_NO_AUTO_UPDATE=1
-          brew audit --strict --online --formula Formula/srchr.rb
-          brew install --formula Formula/srchr.rb
-          brew test Formula/srchr.rb
+          export HOMEBREW_NO_INSTALL_FROM_API=1
+          brew tap webcodr/tap "$PWD"
+          brew audit --strict --online webcodr/tap/srchr
+          brew install webcodr/tap/srchr
+          brew test webcodr/tap/srchr
 
       - name: Commit formula update
         working-directory: tap
