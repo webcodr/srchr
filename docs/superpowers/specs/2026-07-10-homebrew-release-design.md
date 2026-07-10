@@ -54,8 +54,8 @@ brew install webcodr/tap/srchr
 
 ## Verification
 
-The generated formula is first registered from the local tap checkout, then
-checked with `brew audit --strict --online webcodr/tap/srchr`, installed on
-Linux, and tested with `brew test webcodr/tap/srchr` before it is pushed. The
-first release should also be manually installed on macOS Intel and Apple
-Silicon.
+The validation job re-taps the local checkout, copies the rendered formula into
+Homebrew's tap path, then checks it with `brew audit --strict --online
+webcodr/tap/srchr`, installs it on Linux, and runs `brew test webcodr/tap/srchr`
+before pushing. The first release should also be manually installed on macOS
+Intel and Apple Silicon.

@@ -100,7 +100,10 @@ jobs:
           set -euo pipefail
           export HOMEBREW_NO_AUTO_UPDATE=1
           export HOMEBREW_NO_INSTALL_FROM_API=1
+          brew untap webcodr/tap >/dev/null 2>&1 || true
           brew tap webcodr/tap "$PWD"
+          local_tap_path="$(brew --repository webcodr/tap)"
+          cp Formula/srchr.rb "$local_tap_path/Formula/srchr.rb"
           brew audit --strict --online webcodr/tap/srchr
           brew install webcodr/tap/srchr
           brew test webcodr/tap/srchr
