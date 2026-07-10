@@ -114,7 +114,7 @@ jobs:
           TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
         run: |
           set -euo pipefail
-          if git diff --quiet -- Formula/srchr.rb; then
+          if [ -z "$(git status --porcelain -- Formula/srchr.rb)" ]; then
             echo "Formula already matches ${TAG}; nothing to commit."
             exit 0
           fi
